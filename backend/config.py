@@ -46,8 +46,10 @@ USE_PROXY = os.getenv("USE_PROXY", "").lower()
 LLM_TYPE = os.getenv("LLM_TYPE", "gpt-4o")
 API_KEY = os.getenv("API_KEY", "")
 
+logger.info(f"使用的模型：{USE_MODEL}, 使用代理：{USE_PROXY}， API_KEY: {API_KEY}")
+
 # ==================== 服务器配置 ====================
-HOST = os.getenv("HOST", "0.0.0.0")
+HOST = os.getenv("HOST", "127.0.0.1")
 PORT = int(os.getenv("PORT", 8000))
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 最大文件大小：5MB
 

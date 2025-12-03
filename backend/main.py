@@ -51,6 +51,16 @@ async def health_check():
         "model": USE_MODEL,
         "version": "1.0.0"
     }
+@app.get("/")
+async def root():
+    """根路径返回服务状态"""
+    return {
+        "status": "success",
+        "message": "A股K线分析服务运行中",
+        "version": "1.0.0",
+        "docs_url": "http://127.0.0.1:8000/docs",
+        "api_endpoint": "/analyze-kline"
+    }
 
 @app.post("/analyze-kline")
 async def analyze_kline(kline_image: UploadFile = File(...)):
@@ -74,7 +84,7 @@ async def analyze_kline(kline_image: UploadFile = File(...)):
         
         try:
             # 3. AI分析
-            analysis_result = analyze_kline_image(file_path)
+            analysis_result = await analyze_kline_image(file_path)
             
             # 4. 返回结果
             return {

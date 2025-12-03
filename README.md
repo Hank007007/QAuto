@@ -48,3 +48,15 @@ python main.py
 ```
 <li><b>前端部署</b></li>
 
+``` bash
+# 进入前端目录
+cd frontend
+
+# 安装依赖
+npm install
+
+# 启动开发服务
+npm run dev
+# 访问地址：http://127.0.0.1:5173
+```
+

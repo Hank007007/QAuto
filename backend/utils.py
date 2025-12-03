@@ -15,17 +15,16 @@ from config import (
 
 # 初始化AI客户端
 clients = {}
-if USE_MODEL == "chatgpt" and USE_PROXY==False and OPENAI_API_KEY:
+if USE_MODEL == "chatgpt" and USE_PROXY == "false" and OPENAI_API_KEY:
     clients["openai"] = OpenAI(api_key=OPENAI_API_KEY)
     clients["proxy"] = False
-elif USE_MODEL == "gemini" and USE_PROXY==False and GEMINI_API_KEY:
+elif USE_MODEL == "gemini" and USE_PROXY == "false" and GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
     clients["gemini"] = genai.GenerativeModel(GEMINI_MODEL)
     clients["proxy"] = False
-elif USE_PROXY=="true":
+elif USE_PROXY == "true":
     headers = {
         "Authorization": f"Bearer {API_KEY}",
-        'Authorization': 'sk-',
         "Content-Type": "application/json",
         'Accept': 'application/json',
     }
@@ -188,29 +187,34 @@ async def analyze_with_Proxy(image_path: str) -> str:
         
         conn.request("POST", "/v1/chat/completions", payload, headers)
         res = conn.getresponse()
-        # data = res.read()
-        
-        if res.status == 200:
-            data = res.read()
-            return data.decode("utf-8")
+        data = res.read()
+        result = data.decode("utf-8")
+        resultjson = json.loads(result)
+    
+        if hasattr(data, "error"):
+            
+            print(f"请求失败，状态码: {resultjson.error}")
+            return resultjson.error.message
         else:
-            print(f"请求失败，状态码: {res.status}")
+            resultjson = json.loads(result)
+            return resultjson["choices"][0]["message"]["content"].strip()
+            
     except Exception as e:
-        logger.error(f"Gemini分析失败：{str(e)}")
+        logger.error(f"${clients["modelType"]}分析失败：{str(e)}")
         raise
 
-def analyze_kline_image(image_path: str) -> str:
+async def analyze_kline_image(image_path: str) -> str:
     """
     统一的K线图片分析入口
     :param image_path: 图片路径
     :return: 分析结果
     """
-    if USE_MODEL == "chatgpt" and USE_PROXY==False:
+    if USE_MODEL == "chatgpt" and USE_PROXY == "false":
         return analyze_with_chatgpt(image_path)
-    elif USE_MODEL == "gemini" and USE_PROXY==False:
+    elif USE_MODEL == "gemini" and USE_PROXY == "false":
         return analyze_with_gemini(image_path)
-    elif USE_PROXY==True:
-        return analyze_with_Proxy(image_path)
+    elif USE_PROXY == "true":
+        return await analyze_with_Proxy(image_path)
     else:
         raise ValueError(f"不支持的模型类型：{USE_MODEL}")
 
