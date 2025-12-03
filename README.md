@@ -44,7 +44,7 @@ cp .env.example .env
 
 # 启动后端服务
 python main.py
-# 服务地址：http://127.0.0.1:8000
+# 服务地址： http://127.0.0.1:8000
 ```
 <li><b>前端部署</b></li>
 
@@ -59,4 +59,6 @@ npm install
 npm run dev
 # 访问地址：http://127.0.0.1:5173
 ```
+
+<img src='./assets/k1_example.png'>
 
