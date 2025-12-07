@@ -1,0 +1,50 @@
+# Web framework
+fastapi==0.110.0
+uvicorn==0.27.0
+
+# doc handler
+python-multipart==0.0.9
+Pillow>=10.3.0
+
+# AI model
+openai==1.23.6
+google-generativeai==0.5.2
+
+# new in v2.0
+git+https://github.com/openai/CLIP.git@main#egg=clip
+torch>=2.2.0
+torchvision>=0.17.0
+transformers>=4.37.2
+
+clip-interrogator>=0.6.0
+chromadb>=1.3.5
+ftfy>=6.1.1
+regex>=2023.12.25
+tqdm>=4.66.0
+
+# env var
+python-dotenv==1.0.1
+
+# HTTP request
+requests==2.31.0
+
+# log
+loguru==0.7.2
+
+# stock data/analysis
+# 移除原有tushare
+# tushare>=1.2.89
+
+# 添加Baostock
+baostock>=0.8.8
+pandas>=2.2.0
+numpy>=1.26.4
+mplfinance>=0.12.10b0  # K line plot
+
+# cache
+redis>=4.5.0,<6.0.0
+python-dotenv>=1.0.1
+
+# image handler
+Pillow>=10.2.0
+matplotlib>=3.8.2

@@ -1,4 +1,11 @@
 # QAuto
+# A股K线图片AI分析工具 v2.0
+## 核心升级点
+✅ 自动选股：基于 MACD 金叉公式自动筛选符合条件的 A 股标的，取代手动上传 K 线图  
+✅ 自动截图：通过 mplfinance 生成选股标的的日 K 线图，无需人工截图  
+✅ Redis 缓存：缓存选股结果、K 线图、大模型分析结果，提升性能并减少 API 调用成本  
+✅ 批量分析：支持对选股结果批量生成 K 线图并调用大模型分析
+✅ 配置化选股：前端支持自定义选股参数（如 MACD 周期、选股数量） 
 
 # A股K线图片AI分析工具 v1.0
 基于React+TypeScript+Python+ChatGPT/Gemini的A股K线图片智能分析工具，支持上传K线截图并通过AI分析趋势、支撑位、压力位等关键信息。
@@ -33,9 +40,13 @@ cd backend
 
 # 安装依赖（建议用虚拟环境）
 python -m venv qauto
-# 激活虚拟环境
-# Windows: venv\Scripts\activate
-# Mac/Linux: source venv/bin/activate
+
+# 激活qauto虚拟环境
+# Windows: qauto\Scripts\activate
+# Mac/Linux: source qauto/bin/activate
+# Git Bash 专属命令
+source qauto/Scripts/activate
+
 pip install -r requirements.txt
 
 # 配置API密钥
