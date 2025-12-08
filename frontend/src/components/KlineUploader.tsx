@@ -1,7 +1,7 @@
 import React from 'react';
 import { useState, useRef, useEffect } from 'react';
 import { uploadKlineImage } from '../services/api';
-import { AnalysisResult, UploadStatus } from '../types';
+import { AnalysisResult, UploadStatus } from '../types/APITypes';
 import AnalysisResultView from './AnalysisResult';
 
 const KlineUploader = () => {

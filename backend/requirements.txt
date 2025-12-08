@@ -36,7 +36,7 @@ loguru==0.7.2
 # tushare>=1.2.89
 
 # 添加Baostock
-baostock>=0.8.8
+baostock>=0.8.9
 pandas>=2.2.0
 numpy>=1.26.4
 mplfinance>=0.12.10b0  # K line plot

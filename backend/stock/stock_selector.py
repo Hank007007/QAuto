@@ -1,4 +1,5 @@
 import baostock as bs
+from loguru import logger
 import pandas as pd
 import numpy as np
 from dotenv import load_dotenv
@@ -12,6 +13,7 @@ class MACDStockSelector:
     """基于MACD金叉的A股选股器（Baostock版）"""
     def __init__(self):
         # MACD参数（从.env读取，带默认值）
+        logger.info("初始化MACD选股器--------------------------")
         self.fast_period = int(os.getenv("MACD_FAST", 12))
         self.slow_period = int(os.getenv("MACD_SLOW", 26))
         self.signal_period = int(os.getenv("MACD_SIGNAL", 9))
@@ -30,6 +32,8 @@ class MACDStockSelector:
 
     def get_stock_list(self) -> list:
         """获取A股基础列表（Baostock版）"""
+
+        logger.info("获取A股股票列表--------------------------")
         try:
             # 缓存A股列表（有效期1天）
             cache_key = "stock:basic_list"
@@ -39,11 +43,14 @@ class MACDStockSelector:
             
             # 初始化Baostock连接
             lg = bs.login()
+            print(f"登录错误信息: {lg.error_msg}")
+
             if lg.error_code != '0':
                 raise RuntimeError(f"Baostock登录失败: {lg.error_msg}")
             
             # 获取沪深A股列表
-            stock_rs = bs.query_stock_basic(code_name="", exchange="", field="code,code_name,industry,list_date")
+            stock_rs = bs.query_stock_basic(code="", code_name="")
+            logger.info("查询股票列表中...")
             stock_list = []
             while (stock_rs.error_code == '0') & stock_rs.next():
                 row = stock_rs.get_row_data()
@@ -58,14 +65,17 @@ class MACDStockSelector:
             
             # 登出Baostock
             bs.logout()
+
+            logger.info(f"获取股票总数: {len(stock_list)}")
             
             # 筛选沪深A股（排除创业板/科创板可自定义）
-            stock_list = [s for s in stock_list if s['ts_code'].endswith(('SH', 'SZ'))]
+            # stock_list = [s for s in stock_list if s['ts_code'].endswith(('SH', 'SZ'))]
             
             # 缓存结果
             redis_client.set_cache(cache_key, stock_list, 86400)
             return stock_list
         except Exception as e:
+            logger.error(f"获取股票列表失败: {str(e)}")
             raise RuntimeError(f"获取股票列表失败: {str(e)}")
 
     def get_daily_data(self, ts_code: str) -> pd.DataFrame:
@@ -164,13 +174,16 @@ class MACDStockSelector:
             
             for stock in stock_list:
                 ts_code = stock['ts_code']
+                logger.info(f"处理股票-------------: {ts_code}")
                 try:
                     df = self.get_daily_data(ts_code)
                     if len(df) < 60:
                         continue
                     
+                    logger.info(f"计算MACD指标-------------: {ts_code}")
                     df = self.calculate_macd(df)
                     if self.is_macd_gold_cross(df):
+                        logger.info(f"选中股票-------------: {ts_code}")
                         latest = df.tail(1).iloc[0]
                         stock['dif'] = float(latest['dif'])
                         stock['dea'] = float(latest['dea'])
@@ -184,7 +197,10 @@ class MACDStockSelector:
                     print(f"处理{ts_code}失败: {str(e)}")
                     continue
             
+            logger.info(f"选出股票总数: {len(selected_stocks)}")
             redis_client.set_cache(cache_key, selected_stocks, int(os.getenv("CACHE_EXPIRE", 3600)))
+            
+            logger.info("MACD选股完成--------------------------")
             return selected_stocks
         except Exception as e:
             raise RuntimeError(f"选股失败: {str(e)}")

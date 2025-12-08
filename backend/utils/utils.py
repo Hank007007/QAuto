@@ -238,18 +238,26 @@ async def analyze_kline_image(image_path: str, ts_code: str, kline_collection:an
 3. 指出支撑位、压力位；
 4. 给出操作建议（注明仅为技术分析参考）。"""
     
+    logger.info(f"开始分析K线图：{ts_code}")
+    logger.debug(f"分析问题：{user_question}")
+
     # 缓存分析结果
     cache_key = f"analysis:{USE_MODEL}:{ts_code}"
     cached_analysis = redis_client.get_cache(cache_key, "str")
+    logger.info(f"检查缓存：{cache_key}，存在：{bool(cached_analysis)}")
     if cached_analysis:
         return cached_analysis
     
     try:
+        logger.info(f"读取图片文件路径: {image_path}")
         with open(image_path, "rb") as image_file:
             image_bytes = image_file.read()
+        logger.info(f"K线图读取完成：{ts_code}")
 
         # 提取图片特征
         embedding = extract_image_embedding(image_bytes)
+        logger.info(f"提取图片特征完成：{ts_code}")
+        logger.info(f"图片特征向量（前10维）：{embedding[:10]}")
         
         # 检索相似K线
         similar_klines = []
@@ -296,6 +304,9 @@ async def analyze_kline_image(image_path: str, ts_code: str, kline_collection:an
         else:
             raise ValueError(f"不支持的模型类型：{USE_MODEL}")
         
+        logger.info(f"K线图分析完成：{ts_code}")
+        logger.debug(f"分析结果：{analysis_result}")
+
         # 缓存分析结果
         redis_client.set_cache(cache_key, analysis_result)
         

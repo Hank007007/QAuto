@@ -1,11 +1,20 @@
 import axios from 'axios';
-import { UploadResponse } from '../types';
+import { message } from 'antd';
+import {
+  UploadResponse,
+  HealthCheckResponse,
+  SelectStocksResponse,
+  GenerateKlineResponse,
+  AnalyzeStockResponse,
+  BatchAnalyzeResponse,
+  ClearCacheResponse
+} from '../types/APITypes';
 
 // 创建axios实例
-const api = axios.create({
-  timeout: 60000, // 超时时间60秒（AI分析可能耗时较长）
+const apiClient = axios.create({
+  timeout: 120000, // 批量分析超时2分钟（AI分析可能耗时较长）
   headers: {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json;charset=utf-8',
   },
 });
 
@@ -19,7 +28,7 @@ export const uploadKlineImage = async (file: File): Promise<UploadResponse> => {
   formData.append('kline_image', file);
 
   try {
-    const response = await api.post<UploadResponse>('/api/analyze-kline', formData, {
+    const response = await apiClient.post<UploadResponse>('/api/analyze-kline', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -33,3 +42,84 @@ export const uploadKlineImage = async (file: File): Promise<UploadResponse> => {
     };
   }
 };
+
+// 请求拦截器
+apiClient.interceptors.request.use(
+  (config) => config,
+  (error) => {
+    message.error(`请求错误: ${error.message}`);
+    return Promise.reject(error);
+  }
+);
+
+// 响应拦截器
+apiClient.interceptors.response.use(
+  (response) => response.data,
+  (error) => {
+    const errMsg = error.response?.data?.detail || error.message || '请求失败';
+    message.error(errMsg);
+    return Promise.reject(error);
+  }
+);
+
+// 健康检查
+export const healthCheck = async (): Promise<HealthCheckResponse> => {
+  const response = await apiClient.get<HealthCheckResponse>('/api/health');
+  return response.data;
+};
+
+// MACD选股
+export const selectStocks = async (
+  fast?: number,
+  slow?: number,
+  signal?: number
+): Promise<SelectStocksResponse> => {
+  const response = await apiClient.get<SelectStocksResponse>('/api/select-stocks', {
+    params: { fast, slow, signal }
+  });
+  return response.data;
+};
+
+// 生成K线图
+export const generateKline = async (ts_code: string): Promise<GenerateKlineResponse> => {
+  const response = await apiClient.get<GenerateKlineResponse>('/api/generate-kline', {
+    params: { ts_code }
+  });
+  return response.data;
+};
+
+// 分析单只股票
+export const analyzeStock = async (
+  ts_code: string,
+  user_question?: string
+): Promise<AnalyzeStockResponse> => {
+  const response = await apiClient.post<AnalyzeStockResponse>('/api/analyze-stock', {
+    ts_code,
+    user_question
+  });
+  return response.data;
+};
+
+// 批量分析
+export const batchAnalyze = async (
+  fast?: number,
+  slow?: number,
+  signal?: number
+): Promise<BatchAnalyzeResponse> => {
+  const response = await apiClient.post<BatchAnalyzeResponse>('/api/batch-analyze', {
+    fast,
+    slow,
+    signal
+  });
+  return response.data;
+};
+
+// 清理缓存
+export const clearCache = async (cache_type: string = "all"): Promise<ClearCacheResponse> => {
+  const response = await apiClient.post<ClearCacheResponse>('/api/clear-cache', {
+    cache_type
+  });
+  return response.data;
+};
+
+export default apiClient;

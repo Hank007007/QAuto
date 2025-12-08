@@ -50,4 +50,5 @@ def extract_image_embedding(image_bytes: bytes) -> list:
         embedding = embedding / torch.norm(embedding, dim=1, keepdim=True)
         return embedding.cpu().numpy().tolist()[0]
     except Exception as e:
+        logger.error(f"提取图片特征失败: {str(e)}")
         raise RuntimeError(f"提取图片特征失败: {str(e)}")

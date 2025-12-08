@@ -41,8 +41,10 @@ temp/
 *.swo
 
 # 系统文件
+chroma_kline_db/
 .DS_Store
 Thumbs.db
+*.sqlite3
 
 # API密钥
 *.key

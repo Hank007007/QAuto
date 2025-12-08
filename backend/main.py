@@ -1,3 +1,5 @@
+from datetime import datetime
+import json
 import os
 import io
 import base64
@@ -8,7 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 import chromadb
 from chromadb.utils import embedding_functions
-
 import numpy as np
 import openai
 import google.generativeai as genai
@@ -19,7 +20,7 @@ from config import HOST, PORT, MAX_FILE_SIZE, USE_MODEL
 from utils.utils import analyze_uploaded_kline_image, save_uploaded_file, analyze_kline_image, clean_temp_file
 
 # 导入自定义模块
-from cache.redis_client import redis_client
+from cache.redis_client import CustomJSONEncoder, redis_client
 from stock.stock_selector import stock_selector
 from stock.kline_generator import kline_generator
 from utils.image_utils import extract_image_embedding
@@ -100,7 +101,18 @@ async def limit_file_size(request: Request, call_next):
     response = await call_next(request)
     return response
 
-@app.get("/health")
+@app.middleware("http")
+async def custom_json_encoder(request, call_next):
+    response = await call_next(request)
+    return response
+
+# 全局配置：让FastAPI使用自定义编码器序列化JSON
+def custom_json_serializer(obj):
+    return json.dumps(obj, cls=CustomJSONEncoder)
+
+app.json_encoder = CustomJSONEncoder  # 关键：配置全局编码器
+
+@app.get("/health-old", summary="v1.0服务健康检查")
 async def health_check():
     """
     健康检查接口
@@ -146,9 +158,10 @@ async def analyze_kline(kline_image: UploadFile = File(...)):
             analysis_result = await analyze_uploaded_kline_image(file_path)
             
             # 4. 返回结果
-            return {
+            return { "data": {
                 "success": True,
                 "data": analysis_result
+                }
             }
         finally:
             # 5. 清理临时文件
@@ -168,10 +181,11 @@ async def analyze_kline(kline_image: UploadFile = File(...)):
         )
 
 # ====================== API接口 ======================
-@app.get("/api/health", summary="服务健康检查")
+@app.get("/health", summary="服务健康检查")
 async def health_check():
     """检查服务状态（Redis/数据库/大模型）"""
     redis_status = redis_client.ping()
+    logger.info(f"Redis连接状态-----------: {redis_status}")
     chroma_count = stock_collection.count()
     
     return {
@@ -182,7 +196,7 @@ async def health_check():
         "timestamp": str(pd.Timestamp.now())
     }
 
-@app.get("/api/select_stocks", summary="MACD金叉选股")
+@app.get("/select-stocks", summary="MACD金叉选股")
 async def select_stocks(
     fast: Optional[int] = Query(None, description="MACD快速周期"),
     slow: Optional[int] = Query(None, description="MACD慢速周期"),
@@ -194,9 +208,11 @@ async def select_stocks(
         if not stock_selector:
             raise HTTPException(status_code=500, detail="选股器初始化失败")
         
+        logger.info(f"开始执行MACD金叉选股，参数fast={fast}, slow={slow}, signal={signal}, limit={limit}")
         # 执行选股
         selected_stocks = stock_selector.select_stocks(fast=fast, slow=slow, signal=signal)
         selected_stocks = selected_stocks[:limit]
+        logger.info(f"选出{len(selected_stocks)}只符合MACD金叉条件的股票")
         
         # 批量存入ChromaDB（1.3.5支持批量操作）
         stock_ids = []
@@ -208,6 +224,7 @@ async def select_stocks(
             stock_id = stock["ts_code"]  # 用股票代码作为唯一ID
             # 生成特征向量
             embedding = generate_stock_embedding(stock)
+            logger.info(f"生成特征向量，长度：{len(embedding)}")
             # 构造元数据和文档
             metadata = {
                 "symbol": stock["symbol"],
@@ -238,14 +255,16 @@ async def select_stocks(
             "code": 200,
             "msg": "选股成功",
             "data": {
-                "selected_count": len(selected_stocks),
-                "stocks": selected_stocks
+                "status": "success",
+                "count": len(selected_stocks),
+                "data": selected_stocks,
+                "timestamp": str(pd.Timestamp.now())
             }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"选股失败: {str(e)}")
     
-@app.get("/api/stock/{ts_code}", summary="获取单只股票详情+分析")
+@app.get("/stock/{ts_code}", summary="获取单只股票详情+分析")
 async def get_stock_detail(ts_code: str) -> Dict:
     """获取股票详情，并从ChromaDB查询相似股票"""
     try:
@@ -306,7 +325,7 @@ async def get_stock_detail(ts_code: str) -> Dict:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取股票详情失败: {str(e)}")
 
-@app.get("/api/clear_chroma", summary="清空ChromaDB股票向量数据")
+@app.get("/clear_chroma", summary="清空ChromaDB股票向量数据")
 async def clear_chroma_collection():
     """清空股票特征向量集合（谨慎使用）"""
     try:
@@ -319,7 +338,7 @@ async def clear_chroma_collection():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"清空失败: {str(e)}")
 
-@app.get("/api/generate-kline", summary="生成K线图")
+@app.get("/generate-kline", summary="生成K线图")
 async def generate_kline(ts_code: str = Query(..., description="股票代码（如600519.SH）")):
     """生成指定股票的K线图"""
     try:
@@ -342,7 +361,7 @@ async def generate_kline(ts_code: str = Query(..., description="股票代码（�
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"生成K线图失败: {str(e)}")
 
-@app.post("/api/analyze-stock", summary="分析指定股票")
+@app.post("/analyze-stock", summary="分析指定股票")
 async def analyze_stock(
     ts_code: str = Body(..., embed=True, description="股票代码"),
     user_question: str = Body(default=None, embed=True, description="自定义分析问题")
@@ -359,23 +378,25 @@ async def analyze_stock(
         file_path = save_uploaded_file(img_bytes, "png")
         
         # 3. 分析K线图
-        analysis_result = analyze_kline_image(img_bytes, ts_code, stock_collection, redis_client, user_question)
+        analysis_result = await analyze_kline_image(file_path, ts_code, stock_collection, redis_client, user_question)
         
         # 4. 返回结果（包含Base64图片）
         img_base64 = base64.b64encode(img_bytes).decode("utf-8")
         return {
-            "status": "success",
-            "ts_code": ts_code,
-            "stock_name": next((s['name'] for s in stock_selector.get_stock_list() if s['ts_code'] == ts_code), "未知"),
-            "image_base64": img_base64,
-            "analysis_result": analysis_result,
-            "timestamp": str(pd.Timestamp.now()),
-            "llm_type": USE_MODEL
+            "data": {
+                "status": "success",
+                "ts_code": ts_code,
+                "stock_name": next((s['name'] for s in (stock_selector.get_stock_list()) if s['ts_code'] == ts_code), "未知"),
+                "image_base64": img_base64,
+                "analysis_result": analysis_result,
+                "timestamp": str(pd.Timestamp.now()),
+                "llm_type": USE_MODEL
+            }   
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"分析股票失败: {str(e)}")
 
-@app.post("/api/batch-analyze", summary="批量分析选股结果")
+@app.post("/batch-analyze", summary="批量分析选股结果")
 async def batch_analyze(
     fast: int = Body(default=None, embed=True, description="MACD快速周期"),
     slow: int = Body(default=None, embed=True, description="MACD慢速周期"),
@@ -386,17 +407,24 @@ async def batch_analyze(
         # 1. 选股
         selected_stocks = stock_selector.select_stocks(fast, slow, signal)
         if not selected_stocks:
-            return {
-                "status": "success",
-                "count": 0,
-                "data": [],
-                "message": "未筛选出符合MACD金叉条件的股票"
-            }
+            # 返回标准化可序列化响应
+            return JSONResponse(
+                content={
+                    "status": "success",
+                    "count": 0,
+                    "data": [],
+                    "message": "未筛选出符合MACD金叉条件的股票",
+                    "timestamp": datetime.now().isoformat()  # 标准化时间（替代pd.Timestamp）
+                },
+                status_code=200
+            )
         
         # 2. 批量分析
         batch_result = []
         for stock in selected_stocks[:10]:  # 限制批量分析数量
             ts_code = stock['ts_code']
+            if not ts_code:
+                continue  # 跳过无代码的股票
             try:
                 # 获取日线数据
                 df = stock_selector.get_daily_data(ts_code)
@@ -405,35 +433,53 @@ async def batch_analyze(
                 
                 # 生成K线图
                 img_bytes = kline_generator.generate_kline(ts_code, df)
+                file_path = save_uploaded_file(img_bytes, "png")
                 
                 # 分析K线图
-                analysis_result = analyze_kline_image(img_bytes, ts_code, stock_collection, redis_client)
+                analysis_result = await analyze_kline_image(file_path, ts_code, stock_collection, redis_client)
+                
+                # 标准化分析结果（处理numpy/自定义类型）
+                analysis_result = json.loads(json.dumps(analysis_result, cls=CustomJSONEncoder))
                 
                 # 构建结果
-                batch_result.append({
-                    "ts_code": ts_code,
-                    "stock_name": stock['name'],
-                    "industry": stock['industry'],
-                    "latest_price": stock.get('latest_price'),
-                    "macd": stock.get('macd'),
-                    "analysis_result": analysis_result,
-                    "image_base64": base64.b64encode(img_bytes).decode("utf-8")
-                })
+                 # 构建单条结果：逐字段类型转换，确保可序列化
+                single_result = {
+                    "ts_code": str(ts_code),  # 确保是字符串
+                    "stock_name": str(stock.get('name', '')),  # 兜底空字符串
+                    "industry": str(stock.get('industry', '')),
+                    # 修复：numpy数值转Python原生类型（如np.float64 → float）
+                    "latest_price": float(stock.get('latest_price', 0.0)) if stock.get('latest_price') is not None else 0.0,
+                    "macd": float(stock.get('macd', 0.0)) if stock.get('macd') is not None else 0.0,
+                    "analysis_result": analysis_result,  # 已标准化的分析结果
+                    # base64编码后的字符串是JSON可序列化的
+                    "image_base64": base64.b64encode(img_bytes).decode("utf-8") if img_bytes else ""
+                }
+                batch_result.append(single_result)
+
             except Exception as e:
                 print(f"批量分析{ts_code}失败: {str(e)}")
                 continue
         
-        return {
-            "status": "success",
-            "count": len(batch_result),
-            "total_selected": len(selected_stocks),
-            "data": batch_result,
-            "timestamp": str(pd.Timestamp.now())
+        # ========== 构建最终响应：全字段可序列化 ==========
+        final_response = { "data": {
+                "status": "success",
+                "count": int(len(batch_result)),  # 确保是int
+                "total_selected": int(len(selected_stocks)),  # 确保是int
+                "data": batch_result,  # list[dict]，全字段可序列化
+                "timestamp": datetime.now().isoformat()  # 标准化时间字符串（替代pd.Timestamp）
+            }
         }
+        
+        # 使用JSONResponse + 自定义编码器，兜底处理遗漏的不可序列化类型
+        return JSONResponse(
+            content=final_response,
+            status_code=200,
+            media_type="application/json"
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"批量分析失败: {str(e)}")
 
-@app.post("/api/clear-cache", summary="清理缓存")
+@app.post("/clear-cache", summary="清理缓存")
 async def clear_cache(
     cache_type: str = Body(default="all", embed=True, description="缓存类型：all/stock/kline/analysis")
 ):

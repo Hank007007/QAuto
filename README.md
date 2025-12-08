@@ -7,6 +7,9 @@
 ✅ 批量分析：支持对选股结果批量生成 K 线图并调用大模型分析
 ✅ 配置化选股：前端支持自定义选股参数（如 MACD 周期、选股数量） 
 
+<img src='./assets/k2_screen_1.png'>
+<img src='./assets/k2_screen_2.png'>
+
 # A股K线图片AI分析工具 v1.0
 基于React+TypeScript+Python+ChatGPT/Gemini的A股K线图片智能分析工具，支持上传K线截图并通过AI分析趋势、支撑位、压力位等关键信息。
 
@@ -72,4 +75,3 @@ npm run dev
 ```
 
 <img src='./assets/k1_example.png'>
-
