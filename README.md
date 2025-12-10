@@ -9,6 +9,8 @@
 
 <img src='./assets/k2_screen_1.png'>
 <img src='./assets/k2_screen_2.png'>
+<br><br><b>Redis应用</b><br>
+缓存generate_kline生成的k线图， 缓存get_stock_list生成的A股所有的股票列表,  缓存get_daily_data生成的stock当日的数据， 缓存select_stocks通过公式过滤产生的选择的股票列表
 
 # A股K线图片AI分析工具 v1.0
 基于React+TypeScript+Python+ChatGPT/Gemini的A股K线图片智能分析工具，支持上传K线截图并通过AI分析趋势、支撑位、压力位等关键信息。
